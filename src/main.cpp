@@ -80,45 +80,65 @@ int main(int argc, char** argv)
 			//TODO: if gesture active, turn off "wave to exit"
 			//TODO: needs to be adjusted from person to person since they have different arm length (?)
 			//NOTE: a b c are in meters
-			if (a < 0.15 && b < 0.25 && c > 0.40)
+			
+			// Gesture area
+			if (a < 0.25 && b < 0.35 && c > 0.30)
 			{
-				if (!hasBegun){
-					begin = ros::Time::now();
-					ROS_WARN("begin: %f", begin.toNSec());
-					hasBegun = true;
-				}
-
-				duration = ros::Time::now() - begin;
-				
-				float time_diff = timeHoldPose - duration.toSec();
-				
-				if (time_diff > 0.1)
+				// Activation zone
+				if (a < 0.15 && b < 0.25 && c > 0.40)
 				{
-					ROS_INFO("hold position for %.2f more seconds to enter gesture mode", time_diff);
+					float time_diff;
+					
+					if (!hasBegun && !inTheZone){
+						begin = ros::Time::now();
+						ROS_WARN("begin: %f", begin.toNSec());
+						hasBegun = true;
+					}
+					
+					if (hasBegun && !inTheZone)
+					{
+						duration = ros::Time::now() - begin;
+						time_diff = timeHoldPose - duration.toSec();						
+					}
+					
+					if (hasBegun && !inTheZone && time_diff > 0.1)
+					{
+						ROS_INFO("hold position for %.2f s", time_diff);
+					}
+					else if (hasBegun && !inTheZone && std::abs(time_diff) < 0.1)
+					{
+						ref_a = a;
+						ref_b = b;
+						ref_c = c;
+						ROS_WARN("GESTURE IS ACTIVE");
+						inTheZone = true;
+					} // end if time_diff
 				}
-				else if (std::abs(time_diff) < 0.1 && !inTheZone)
+				else // activation zone
 				{
-					ref_a = a;
-					ref_b = b;
-					ref_c = c;
-					ROS_WARN("hand is IN THE ZONE");
-					inTheZone = true;
-				} // end if time_diff
+					hasBegun = false;
+				}
+				// end activation zone
 				
 				if (inTheZone)
 				{
 					ROS_INFO("rel pos: (%.2f, %.2f, %.2f)", ref_a - a, ref_b - b, ref_c - c);
-				} // end if inTheZone
+				}
+				else if (!hasBegun)
+				{
+					ROS_INFO("inside gesture area but not active");
+				}// end if inTheZone
 			}
-			else // from if a b c
+			else // gesture area
 			{
 				//ROS_INFO("nothing");
-				hasBegun = false;
 				inTheZone = false;
+				hasBegun = false;
 				ref_a = 0;
 				ref_b = 0;
 				ref_c = 0;
-			} // end if a b c
+			}
+			// end if gesture area
 		}
 		catch (tf::TransformException ex)
 		{
