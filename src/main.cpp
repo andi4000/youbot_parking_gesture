@@ -14,9 +14,12 @@ int main(int argc, char** argv)
 	
 	ros::NodeHandle node;
 	
+	tf::TransformListener tfListener;
+	
+	ros::Publisher pub_offset_x = node.advertise<std_msgs::Float32>("/youbotPID/linear_x/offset", 1000);
+	ros::Publisher pub_offset_y = node.advertise<std_msgs::Float32>("/youbotPID/linear_y/offset", 1000);
 	ros::Rate rate(40);
 	
-	tf::TransformListener tfListener;
 	
 	bool hasBegun = false;
 	ros::Time begin;
@@ -24,14 +27,26 @@ int main(int argc, char** argv)
 	
 	bool inTheZone = false;
 	
-	float timeHoldPose = 1; // seconds
+	float timeHoldPose = 2; // seconds
 	
 	// reference initial values for gesture
 	// hand pos calc has to be relative to a fixed point because robot+cam will move
+	//TODO: needs to be tested
 	float ref_a = 0, ref_b = 0, ref_c = 0;
 	
+	// ROS message
+	std_msgs::Float32 msg_offset_x, msg_offset_y;
+	// coordinate transformation: 
+	// cam_x = robot_y
+	// cam_z = robot_x
+	//TODO: sign of above is it positive or negative
+	//DONE: offset values should be held (not going back to 0 when no gesture) --> done
+	//TODO: when new user comes, offset should be back to 0!
+	msg_offset_x.data = 0.0;
+	msg_offset_y.data = 0.0;
+
 	while (node.ok())
-	{
+	{	
 		tf::StampedTransform t_right_shoulder;
 		tf::StampedTransform t_right_hand;
 /**
@@ -123,6 +138,9 @@ int main(int argc, char** argv)
 				if (inTheZone)
 				{
 					ROS_INFO("rel pos: (%.2f, %.2f, %.2f)", ref_a - a, ref_b - b, ref_c - c);
+					msg_offset_x.data = ref_c - c;
+					msg_offset_y.data = ref_a - a;
+					//TODO: plus or minus????
 				}
 				else if (!hasBegun)
 				{
@@ -145,6 +163,11 @@ int main(int argc, char** argv)
 			ROS_ERROR("%s", ex.what());
 		}
 		
+		// ROS message
+		pub_offset_x.publish(msg_offset_x);
+		pub_offset_y.publish(msg_offset_y);
+		ros::spinOnce();
+		rate.sleep();
 	} // while node.ok
 	
 	return 0;
