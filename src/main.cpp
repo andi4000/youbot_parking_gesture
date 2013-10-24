@@ -48,8 +48,8 @@ int main(int argc, char** argv)
 	// coordinate transformation: 
 	// cam_x = robot_y
 	// cam_z = robot_x
-	//TODO: sign of above is it positive or negative
-	//DONE: offset values should be held (not going back to 0 when no gesture) --> done
+	//DONE: sign of above is it positive or negative
+	//TODO: offset values should be held (not going back to 0 when no gesture) --> done --> NOPE!
 	//DONE: when new user comes, offset should be back to 0!
 	msg_offset_x.data = 0.0;
 	msg_offset_y.data = 0.0;
