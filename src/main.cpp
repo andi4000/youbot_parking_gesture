@@ -8,6 +8,13 @@
 #include <cmath>
 #include "ros/time.h"
 
+//TODO: do not use global variable!
+bool g_activeUserPresent = false;
+void userStateCallback(const std_msgs::Bool::ConstPtr& msg)
+{
+	g_activeUserPresent = msg->data;
+}
+
 int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "gesturedetector");
@@ -15,6 +22,8 @@ int main(int argc, char** argv)
 	ros::NodeHandle node;
 	
 	tf::TransformListener tfListener;
+	
+	ros::Subscriber sub_activeUserPresent = node.subscribe("/openni2_user_selection/activeUserPresent", 1000, userStateCallback);
 	
 	ros::Publisher pub_offset_x = node.advertise<std_msgs::Float32>("/youbotPID/linear_x/offset", 1000);
 	ros::Publisher pub_offset_y = node.advertise<std_msgs::Float32>("/youbotPID/linear_y/offset", 1000);
@@ -41,7 +50,7 @@ int main(int argc, char** argv)
 	// cam_z = robot_x
 	//TODO: sign of above is it positive or negative
 	//DONE: offset values should be held (not going back to 0 when no gesture) --> done
-	//TODO: when new user comes, offset should be back to 0!
+	//DONE: when new user comes, offset should be back to 0!
 	msg_offset_x.data = 0.0;
 	msg_offset_y.data = 0.0;
 
@@ -73,6 +82,12 @@ int main(int argc, char** argv)
 		
 		float a = 0, b = 0, c = 0;
 		
+		if (!g_activeUserPresent)
+		{
+			msg_offset_x.data = 0.0;
+			msg_offset_y.data = 0.0;
+		}
+		
 		try
 		{
 			tfListener.lookupTransform("/openni_depth_frame", "right_shoulder", ros::Time(0), t_right_shoulder);
@@ -86,9 +101,11 @@ int main(int argc, char** argv)
 			b = t_right_shoulder.getOrigin().y() - t_right_hand.getOrigin().y();
 			c = t_right_shoulder.getOrigin().z() - t_right_hand.getOrigin().z();
 			
+			/**
 			a = std::abs(a);
 			b = std::abs(b);
 			c = std::abs(c);
+			*/
 			
 			//ROS_INFO("a b c (%.2f, %.2f, %.2f)", a, b, c);
 			
@@ -97,10 +114,10 @@ int main(int argc, char** argv)
 			//NOTE: a b c are in meters
 			
 			// Gesture area
-			if (a < 0.25 && b < 0.35 && c > 0.30)
+			if (std::abs(a) < 0.25 && std::abs(b) < 0.35 && std::abs(c) > 0.30)
 			{
 				// Activation zone
-				if (a < 0.15 && b < 0.25 && c > 0.40)
+				if (std::abs(a) < 0.15 && std::abs(b) < 0.25 && std::abs(c) > 0.40)
 				{
 					float time_diff;
 					
