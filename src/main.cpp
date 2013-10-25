@@ -82,6 +82,7 @@ int main(int argc, char** argv)
 		
 		float a = 0, b = 0, c = 0;
 		
+		// to reset offset when active user is lost
 		if (!g_activeUserPresent)
 		{
 			msg_offset_x.data = 0.0;
@@ -161,10 +162,12 @@ int main(int argc, char** argv)
 				}
 				else if (!hasBegun)
 				{
+					msg_offset_x.data = 0;
+					msg_offset_y.data = 0;
 					ROS_INFO("inside gesture area but not active");
 				}// end if inTheZone
 			}
-			else // gesture area
+			else // if outside gesture area
 			{
 				//ROS_INFO("nothing");
 				inTheZone = false;
@@ -172,6 +175,9 @@ int main(int argc, char** argv)
 				ref_a = 0;
 				ref_b = 0;
 				ref_c = 0;
+				
+				msg_offset_x.data = 0;
+				msg_offset_y.data = 0;
 			}
 			// end if gesture area
 		}
