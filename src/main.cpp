@@ -8,6 +8,11 @@
 #include <cmath>
 #include "ros/time.h"
 
+#define GESTURE_INACTIVE 0
+#define GESTURE_ACTIVE_ONE_HAND 1
+#define GESTURE_ACTIVE_TWO_HANDS 2
+
+
 //TODO: do not use global variable!
 bool g_activeUserPresent = false;
 void userStateCallback(const std_msgs::Bool::ConstPtr& msg)
@@ -25,10 +30,10 @@ int main(int argc, char** argv)
 	
 	ros::Subscriber sub_activeUserPresent = node.subscribe("/openni2_user_selection/activeUserPresent", 1000, userStateCallback);
 	
-	ros::Publisher pub_offset_x = node.advertise<std_msgs::Float32>("/youbotPID/linear_x/offset", 1000);
-	ros::Publisher pub_offset_y = node.advertise<std_msgs::Float32>("/youbotPID/linear_y/offset", 1000);
+	ros::Publisher pub_offset_x = node.advertise<std_msgs::Float32>("/youbotStalker/gesture_processor/offset_linear_x", 1000);
+	ros::Publisher pub_offset_y = node.advertise<std_msgs::Float32>("/youbotStalker/gesture_processor/offset_linear_y", 1000);
+	ros::Publisher pub_gesture_state = node.advertise<std_msgs::Int32>("/youbotStalker/gesture_processor/state", 1000);
 	ros::Rate rate(40);
-	
 	
 	bool hasBegun = false;
 	ros::Time begin;
@@ -45,6 +50,7 @@ int main(int argc, char** argv)
 	
 	// ROS message
 	std_msgs::Float32 msg_offset_x, msg_offset_y;
+	std_msgs::Int32 msg_state;
 	// coordinate transformation: 
 	// cam_x = robot_y
 	// cam_z = robot_x
@@ -53,6 +59,7 @@ int main(int argc, char** argv)
 	//DONE: when new user comes, offset should be back to 0!
 	msg_offset_x.data = 0.0;
 	msg_offset_y.data = 0.0;
+	msg_state.data = GESTURE_INACTIVE;
 
 	while (node.ok())
 	{	
@@ -83,10 +90,12 @@ int main(int argc, char** argv)
 		float a = 0, b = 0, c = 0;
 		
 		// to reset offset when active user is lost
+		// actually this is not necessary, just to make sure
 		if (!g_activeUserPresent)
 		{
 			msg_offset_x.data = 0.0;
 			msg_offset_y.data = 0.0;
+			msg_state.data = GESTURE_INACTIVE;
 		}
 		
 		try
@@ -158,12 +167,14 @@ int main(int argc, char** argv)
 					ROS_INFO("rel pos: (%.2f, %.2f, %.2f)", ref_a - a, ref_b - b, ref_c - c);
 					msg_offset_x.data = ref_c - c;
 					msg_offset_y.data = ref_a - a;
+					msg_state.data = GESTURE_ACTIVE_ONE_HAND;
 					//TODO: plus or minus????
 				}
 				else if (!hasBegun)
 				{
 					msg_offset_x.data = 0;
 					msg_offset_y.data = 0;
+					msg_state.data = GESTURE_INACTIVE;
 					ROS_INFO("inside gesture area but not active");
 				}// end if inTheZone
 			}
@@ -178,6 +189,7 @@ int main(int argc, char** argv)
 				
 				msg_offset_x.data = 0;
 				msg_offset_y.data = 0;
+				msg_state.data = GESTURE_INACTIVE;
 			}
 			// end if gesture area
 		}
@@ -189,6 +201,7 @@ int main(int argc, char** argv)
 		// ROS message
 		pub_offset_x.publish(msg_offset_x);
 		pub_offset_y.publish(msg_offset_y);
+		pub_gesture_state.publish(msg_state);
 		ros::spinOnce();
 		rate.sleep();
 	} // while node.ok

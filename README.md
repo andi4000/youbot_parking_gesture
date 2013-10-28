@@ -5,6 +5,10 @@ Using skeleton joint positions provided by openni2_user_selection.
 
 
 ####Changelog:
+28.10.2013:
+- topic namespace change
+- published a new topic with current gesture state
+
 23.10.2013:
 - offset values published, needs confirmation for proper coordinate transformation
 
