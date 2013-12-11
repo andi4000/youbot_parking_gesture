@@ -18,6 +18,8 @@
 #define GESTURE_ACTIVE_ONE_HAND 1
 #define GESTURE_ACTIVE_TWO_HANDS 2
 
+#define RIGHTHAND true
+#define LEFTHAND false
 
 //TODO: do not use global variable!
 bool g_activeUserPresent = false;
@@ -47,7 +49,7 @@ int main(int argc, char** argv)
 	
 	bool inTheZone = false;
 	
-	float timeHoldPose = 2; // seconds
+	float timeToHoldPose = 2; // seconds
 	
 	// reference initial values for gesture
 	// hand pos calc has to be relative to a fixed point because robot+cam will move
@@ -67,44 +69,29 @@ int main(int argc, char** argv)
 	msg_offset_y.data = 0.0;
 	msg_state.data = GESTURE_INACTIVE;
 
+	bool rh_inArea = false; // right hand
+	bool lh_inArea = false; // left hand
+	bool activeHand = RIGHTHAND; // or true
+	bool gestureActive = false;
+	tf::Vector3 gestureReference;
+
 	while (node.ok())
 	{	
-		tf::StampedTransform t_right_shoulder;
-		tf::StampedTransform t_right_hand;
+		tf::StampedTransform tRightShoulder;
+		tf::StampedTransform tRightHand;
 		
-		tf::StampedTransform t_left_shoulder;
-		tf::StampedTransform t_left_hand;
+		tf::StampedTransform tLeftShoulder;
+		tf::StampedTransform tLeftHand;
 		
-		tf::Vector3 v_right_shoulder, v_right_hand, v_left_shoulder, v_left_hand;
-		
-/**
-		// complete list
-		tf::StampedTransform t_head;
-		tf::StampedTransform t_neck;
-		tf::StampedTransform t_torso;
-
-		tf::StampedTransform t_left_shoulder;
-		tf::StampedTransform t_left_elbow;
-		tf::StampedTransform t_left_hand;
-
-		tf::StampedTransform t_left_hip;
-		tf::StampedTransform t_left_knee;
-		tf::StampedTransform t_left_foot;
-		
-		tf::StampedTransform t_right_shoulder;
-		tf::StampedTransform t_right_elbow;
-		tf::StampedTransform t_right_hand;
-		
-		tf::StampedTransform t_right_hip;
-		tf::StampedTransform t_right_knee;
-		tf::StampedTransform t_right_foot;
-*/	
-		
+		tf::Vector3 vRightShoulder, vRightHand, vLeftShoulder, vLeftHand;
+				
 		float a = 0, b = 0, c = 0;
 		
-		float hand_dist;
+		float handDistance;
 		tf::Vector3 crossProductRH; // right hand
 		tf::Vector3 crossProductLH; // left hand
+		tf::Vector3 substractionRH;
+		tf::Vector3 substractionLH;
 		
 		// to reset offset when active user is lost
 		// actually this is not necessary, just to make sure
@@ -117,36 +104,103 @@ int main(int argc, char** argv)
 		
 		try
 		{
-			tfListener.lookupTransform("/openni_depth_frame", "right_shoulder", ros::Time(0), t_right_shoulder);
-			tfListener.lookupTransform("/openni_depth_frame", "right_hand", ros::Time(0), t_right_hand);
-			tfListener.lookupTransform("/openni_depth_frame", "left_shoulder", ros::Time(0), t_left_shoulder);
-			tfListener.lookupTransform("/openni_depth_frame", "left_hand", ros::Time(0), t_left_hand);
+			tfListener.lookupTransform("/openni_depth_frame", "right_shoulder", ros::Time(0), tRightShoulder);
+			tfListener.lookupTransform("/openni_depth_frame", "right_hand", ros::Time(0), tRightHand);
+			tfListener.lookupTransform("/openni_depth_frame", "left_shoulder", ros::Time(0), tLeftShoulder);
+			tfListener.lookupTransform("/openni_depth_frame", "left_hand", ros::Time(0), tLeftHand);
 			
-			v_right_shoulder = t_right_shoulder.getOrigin();
-			v_right_hand = t_right_hand.getOrigin();
-			v_left_shoulder = t_left_shoulder.getOrigin();
-			v_left_hand = t_left_hand.getOrigin();
+			vRightShoulder = tRightShoulder.getOrigin();
+			vRightHand = tRightHand.getOrigin();
+			vLeftShoulder = tLeftShoulder.getOrigin();
+			vLeftHand = tLeftHand.getOrigin();
 			
-			hand_dist = tf::tfDistance(v_right_hand, v_left_hand);
+			handDistance = tf::tfDistance(vRightHand, vLeftHand);
+
+			crossProductRH = tf::tfCross(vRightShoulder, vRightHand);			
+			crossProductLH = tf::tfCross(vLeftShoulder, vLeftHand);
 			
-			crossProduct_left = tf::tfCross(v_left_shoulder, v_left_hand);
-			crossProduct_right = tf::tfCross(v_right_shoulder, v_right_hand);
+			substractionRH = vRightShoulder - vRightHand;
+			substractionLH = vLeftShoulder - vLeftHand;
 			//ROS_INFO("cross result = (%.2f, %.2f, %.2f)", cross_hand_shoulder.x(), cross_hand_shoulder.y(), cross_hand_shoulder.z());
+						
+			if (std::abs(crossProductRH.x()) < 0.4 && std::abs(crossProductRH.y()) < 0.4)
+				rh_inArea = true;
+			else
+				rh_inArea = false;
+
+			if (std::abs(crossProductLH.x()) < 0.4 && std::abs(crossProductLH.y()) < 0.4)
+				lh_inArea = true;
+			else
+				lh_inArea = false;
+							
+			// activation area == gesture area
+			if (rh_inArea || lh_inArea)
+			{
+				// timer begin
+				float time_diff;
+				if (!hasBegun && !gestureActive)
+				{
+					begin = ros::Time::now();
+					ROS_WARN("begin: %f", begin.toNSec());
+					hasBegun = true;
+				}
+				
+				if (hasBegun && !gestureActive)
+				{
+					duration = ros::Time::now() - begin;
+					time_diff = timeToHoldPose - duration.toSec();
+				}
+				
+				if (hasBegun && !gestureActive && std::abs(time_diff) < 0.1 && time_diff < 0)
+				{
+					ROS_WARN("Gesture Mode is ACTIVE");
+					gestureActive = true;
+					activeHand = rh_inArea; // if both hand are present, right hand will be chosen
+					if (activeHand)
+						gestureReference = substractionRH;
+					else
+						gestureReference = substractionLH;
+				}
+				else
+				{
+					ROS_INFO("hold position for %.2f s", time_diff);					
+				}
+				// timer end
+			}
+			else // activation area
+			{
+				hasBegun = false;
+				gestureActive = false;
+				gestureReference = tf::Vector3(0,0,0);
+				msg_state.data = GESTURE_INACTIVE;
+			}
 			
+			// gesture sending
+			if (gestureActive)
+			{
+				if (activeHand == RIGHTHAND)
+				{
+					ROS_INFO("RH x y offset = (%.2f, %.2f)", gestureReference.z() - substractionRH.z(), crossProductRH.y());
+				}
+				else if (activeHand == LEFTHAND)
+				{
+					ROS_INFO("LH x y offset = (%.2f, %.2f)", gestureReference.z() - substractionLH.z(), crossProductLH.y());
+				}
+				
+				if (handDistance < 0.3)
+					msg_state.data = GESTURE_ACTIVE_TWO_HANDS;
+				else
+					msg_state.data = GESTURE_ACTIVE_ONE_HAND;
+			} // if gestureActive
 			
-			
-			// this might become obsolete
-			a = t_right_shoulder.getOrigin().x() - t_right_hand.getOrigin().x();
-			b = t_right_shoulder.getOrigin().y() - t_right_hand.getOrigin().y();
-			c = t_right_shoulder.getOrigin().z() - t_right_hand.getOrigin().z();
-			
+			// =========================================================
 			
 			/**
-			a = std::abs(a);
-			b = std::abs(b);
-			c = std::abs(c);
-			*/
-			
+			// this might become obsolete
+			a = tRightShoulder.getOrigin().x() - tRightHand.getOrigin().x();
+			b = tRightShoulder.getOrigin().y() - tRightHand.getOrigin().y();
+			c = tRightShoulder.getOrigin().z() - tRightHand.getOrigin().z();
+						
 			//ROS_INFO("a b c (%.2f, %.2f, %.2f)", a, b, c);
 			
 			//TODO: if gesture active, turn off "wave to exit"
@@ -170,7 +224,7 @@ int main(int argc, char** argv)
 					if (hasBegun && !inTheZone)
 					{
 						duration = ros::Time::now() - begin;
-						time_diff = timeHoldPose - duration.toSec();						
+						time_diff = timeToHoldPose - duration.toSec();						
 					}
 					
 					if (hasBegun && !inTheZone && time_diff > 0.1)
@@ -195,7 +249,7 @@ int main(int argc, char** argv)
 				if (inTheZone)
 				{
 					ROS_INFO("rel pos: (%.2f, %.2f, %.2f)", ref_a - a, ref_b - b, ref_c - c);
-					ROS_INFO("hand dist = %.2f", hand_dist);
+					ROS_INFO("hand dist = %.2f", handDistance);
 
 					
 					msg_offset_x.data = ref_c - c;
@@ -225,6 +279,8 @@ int main(int argc, char** argv)
 				msg_state.data = GESTURE_INACTIVE;
 			}
 			// end if gesture area
+			 
+			*/
 		}
 		catch (tf::TransformException ex)
 		{
