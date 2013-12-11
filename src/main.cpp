@@ -108,8 +108,9 @@ int main(int argc, char** argv)
 			msg_state.data = GESTURE_INACTIVE;
 		}
 		
-		if (!g_activeUserVisible)
-			continue;
+		//TODO: why is this not working?????
+		//if (!g_activeUserVisible)
+			//continue;
 			
 		try
 		{
@@ -132,13 +133,14 @@ int main(int argc, char** argv)
 			substractionLH = vLeftShoulder - vLeftHand;
 			ROS_INFO("crossRH = (%.2f, %.2f, %.2f)", crossProductRH.x(), crossProductRH.y(), crossProductRH.z());
 			ROS_INFO("crossLH = (%.2f, %.2f, %.2f)", crossProductLH.x(), crossProductLH.y(), crossProductLH.z());
-						
-			if (std::abs(crossProductRH.x()) < 0.5 && std::abs(crossProductRH.y()) < 0.5)
+			
+			float crossLimit = 0.45;
+			if (g_activeUserVisible && std::abs(crossProductRH.x()) < crossLimit && std::abs(crossProductRH.y()) < crossLimit)
 				rh_inArea = true;
 			else
 				rh_inArea = false;
 
-			if (std::abs(crossProductLH.x()) < 0.5 && std::abs(crossProductLH.y()) < 0.5)
+			if (g_activeUserVisible && std::abs(crossProductLH.x()) < crossLimit && std::abs(crossProductLH.y()) < crossLimit)
 				lh_inArea = true;
 			else
 				lh_inArea = false;
