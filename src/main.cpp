@@ -1,3 +1,9 @@
+/*
+ * References:
+ * Vector operation from API: http://docs.ros.org/fuerte/api/tf/html/c++/Vector3_8h.html
+ * 
+ */
+
 #include "ros/ros.h"
 #include "tf/transform_listener.h"
 
@@ -65,7 +71,14 @@ int main(int argc, char** argv)
 	{	
 		tf::StampedTransform t_right_shoulder;
 		tf::StampedTransform t_right_hand;
+		
+		tf::StampedTransform t_left_shoulder;
+		tf::StampedTransform t_left_hand;
+		
+		tf::Vector3 v_right_shoulder, v_right_hand, v_left_shoulder, v_left_hand;
+		
 /**
+		// complete list
 		tf::StampedTransform t_head;
 		tf::StampedTransform t_neck;
 		tf::StampedTransform t_torso;
@@ -89,6 +102,10 @@ int main(int argc, char** argv)
 		
 		float a = 0, b = 0, c = 0;
 		
+		float hand_dist;
+		tf::Vector3 crossProductRH; // right hand
+		tf::Vector3 crossProductLH; // left hand
+		
 		// to reset offset when active user is lost
 		// actually this is not necessary, just to make sure
 		if (!g_activeUserPresent)
@@ -101,15 +118,28 @@ int main(int argc, char** argv)
 		try
 		{
 			tfListener.lookupTransform("/openni_depth_frame", "right_shoulder", ros::Time(0), t_right_shoulder);
-			//tfListener.lookupTransform("/openni_depth_frame", "right_elbow", ros::Time(0), t_right_elbow);
 			tfListener.lookupTransform("/openni_depth_frame", "right_hand", ros::Time(0), t_right_hand);
+			tfListener.lookupTransform("/openni_depth_frame", "left_shoulder", ros::Time(0), t_left_shoulder);
+			tfListener.lookupTransform("/openni_depth_frame", "left_hand", ros::Time(0), t_left_hand);
 			
-			//ROS_INFO("hand: (%.2f, %.2f, %.2f)", t_right_hand.getOrigin().x(), t_right_hand.getOrigin().y(), t_right_hand.getOrigin().z());
-			//ROS_INFO("shou: (%.2f, %.2f, %.2f)", t_right_shoulder.getOrigin().x(), t_right_shoulder.getOrigin().y(), t_right_shoulder.getOrigin().z());
+			v_right_shoulder = t_right_shoulder.getOrigin();
+			v_right_hand = t_right_hand.getOrigin();
+			v_left_shoulder = t_left_shoulder.getOrigin();
+			v_left_hand = t_left_hand.getOrigin();
 			
+			hand_dist = tf::tfDistance(v_right_hand, v_left_hand);
+			
+			crossProduct_left = tf::tfCross(v_left_shoulder, v_left_hand);
+			crossProduct_right = tf::tfCross(v_right_shoulder, v_right_hand);
+			//ROS_INFO("cross result = (%.2f, %.2f, %.2f)", cross_hand_shoulder.x(), cross_hand_shoulder.y(), cross_hand_shoulder.z());
+			
+			
+			
+			// this might become obsolete
 			a = t_right_shoulder.getOrigin().x() - t_right_hand.getOrigin().x();
 			b = t_right_shoulder.getOrigin().y() - t_right_hand.getOrigin().y();
 			c = t_right_shoulder.getOrigin().z() - t_right_hand.getOrigin().z();
+			
 			
 			/**
 			a = std::abs(a);
@@ -165,6 +195,9 @@ int main(int argc, char** argv)
 				if (inTheZone)
 				{
 					ROS_INFO("rel pos: (%.2f, %.2f, %.2f)", ref_a - a, ref_b - b, ref_c - c);
+					ROS_INFO("hand dist = %.2f", hand_dist);
+
+					
 					msg_offset_x.data = ref_c - c;
 					msg_offset_y.data = ref_a - a;
 					msg_state.data = GESTURE_ACTIVE_ONE_HAND;
