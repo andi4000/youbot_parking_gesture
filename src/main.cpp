@@ -23,9 +23,14 @@
 
 //TODO: do not use global variable!
 bool g_activeUserPresent = false;
-void userStateCallback(const std_msgs::Bool::ConstPtr& msg)
+bool g_activeUserVisible = false;
+void userPresentCallback(const std_msgs::Bool::ConstPtr& msg)
 {
 	g_activeUserPresent = msg->data;
+}
+void userVisibleCallback(const std_msgs::Bool::ConstPtr& msg)
+{
+	g_activeUserVisible = msg->data;
 }
 
 int main(int argc, char** argv)
@@ -36,7 +41,8 @@ int main(int argc, char** argv)
 	
 	tf::TransformListener tfListener;
 	
-	ros::Subscriber sub_activeUserPresent = node.subscribe("/openni2_user_selection/activeUserPresent", 1000, userStateCallback);
+	ros::Subscriber sub_activeUserPresent = node.subscribe("/openni2_user_selection/activeUserPresent", 1000, userPresentCallback);
+	ros::Subscriber sub_activeUserVisible = node.subscribe("/openni2_user_selection/activeUserVisible", 1000, userVisibleCallback);
 	
 	ros::Publisher pub_offset_x = node.advertise<std_msgs::Float32>("/youbotStalker/gesture_processor/offset_linear_x", 1000);
 	ros::Publisher pub_offset_y = node.advertise<std_msgs::Float32>("/youbotStalker/gesture_processor/offset_linear_y", 1000);
@@ -102,6 +108,9 @@ int main(int argc, char** argv)
 			msg_state.data = GESTURE_INACTIVE;
 		}
 		
+		if (!g_activeUserVisible)
+			continue;
+			
 		try
 		{
 			tfListener.lookupTransform("/openni_depth_frame", "right_shoulder", ros::Time(0), tRightShoulder);
@@ -121,14 +130,15 @@ int main(int argc, char** argv)
 			
 			substractionRH = vRightShoulder - vRightHand;
 			substractionLH = vLeftShoulder - vLeftHand;
-			//ROS_INFO("cross result = (%.2f, %.2f, %.2f)", cross_hand_shoulder.x(), cross_hand_shoulder.y(), cross_hand_shoulder.z());
+			ROS_INFO("crossRH = (%.2f, %.2f, %.2f)", crossProductRH.x(), crossProductRH.y(), crossProductRH.z());
+			ROS_INFO("crossLH = (%.2f, %.2f, %.2f)", crossProductLH.x(), crossProductLH.y(), crossProductLH.z());
 						
-			if (std::abs(crossProductRH.x()) < 0.4 && std::abs(crossProductRH.y()) < 0.4)
+			if (std::abs(crossProductRH.x()) < 0.5 && std::abs(crossProductRH.y()) < 0.5)
 				rh_inArea = true;
 			else
 				rh_inArea = false;
 
-			if (std::abs(crossProductLH.x()) < 0.4 && std::abs(crossProductLH.y()) < 0.4)
+			if (std::abs(crossProductLH.x()) < 0.5 && std::abs(crossProductLH.y()) < 0.5)
 				lh_inArea = true;
 			else
 				lh_inArea = false;
@@ -151,7 +161,11 @@ int main(int argc, char** argv)
 					time_diff = timeToHoldPose - duration.toSec();
 				}
 				
-				if (hasBegun && !gestureActive && std::abs(time_diff) < 0.1 && time_diff < 0)
+				if (hasBegun && !gestureActive && time_diff > 0.1)
+				{
+					ROS_INFO("hold position for %.2f s", time_diff);
+				} 
+				else if (hasBegun && !gestureActive && std::abs(time_diff) < 0.1)
 				{
 					ROS_WARN("Gesture Mode is ACTIVE");
 					gestureActive = true;
@@ -161,10 +175,6 @@ int main(int argc, char** argv)
 					else
 						gestureReference = substractionLH;
 				}
-				else
-				{
-					ROS_INFO("hold position for %.2f s", time_diff);					
-				}
 				// timer end
 			}
 			else // activation area
@@ -173,6 +183,7 @@ int main(int argc, char** argv)
 				gestureActive = false;
 				gestureReference = tf::Vector3(0,0,0);
 				msg_state.data = GESTURE_INACTIVE;
+				ROS_INFO("nothing");
 			}
 			
 			// gesture sending
@@ -188,7 +199,10 @@ int main(int argc, char** argv)
 				}
 				
 				if (handDistance < 0.3)
+				{	
+					ROS_INFO("double hands mode!");
 					msg_state.data = GESTURE_ACTIVE_TWO_HANDS;
+				}
 				else
 					msg_state.data = GESTURE_ACTIVE_ONE_HAND;
 			} // if gestureActive
