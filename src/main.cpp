@@ -17,6 +17,7 @@
 #define GESTURE_INACTIVE 0
 #define GESTURE_ACTIVE_ONE_HAND 1
 #define GESTURE_ACTIVE_TWO_HANDS 2
+#define GESTURE_HOLD 3
 
 #define RIGHTHAND true
 #define LEFTHAND false
@@ -101,7 +102,7 @@ int main(int argc, char** argv)
 		
 		// to reset offset when active user is lost
 		// actually this is not necessary, just to make sure
-		if (!g_activeUserPresent)
+		if (!g_activeUserPresent || !g_activeUserVisible)
 		{
 			msg_offset_x.data = 0.0;
 			msg_offset_y.data = 0.0;
@@ -131,8 +132,8 @@ int main(int argc, char** argv)
 			
 			substractionRH = vRightShoulder - vRightHand;
 			substractionLH = vLeftShoulder - vLeftHand;
-			ROS_INFO("crossRH = (%.2f, %.2f, %.2f)", crossProductRH.x(), crossProductRH.y(), crossProductRH.z());
-			ROS_INFO("crossLH = (%.2f, %.2f, %.2f)", crossProductLH.x(), crossProductLH.y(), crossProductLH.z());
+			//ROS_INFO("crossRH = (%.2f, %.2f, %.2f)", crossProductRH.x(), crossProductRH.y(), crossProductRH.z());
+			//ROS_INFO("crossLH = (%.2f, %.2f, %.2f)", crossProductLH.x(), crossProductLH.y(), crossProductLH.z());
 			
 			float crossLimit = 0.45;
 			if (g_activeUserVisible && std::abs(crossProductRH.x()) < crossLimit && std::abs(crossProductRH.y()) < crossLimit)
@@ -185,19 +186,30 @@ int main(int argc, char** argv)
 				gestureActive = false;
 				gestureReference = tf::Vector3(0,0,0);
 				msg_state.data = GESTURE_INACTIVE;
+				
+				msg_offset_x.data = 0;
+				msg_offset_y.data = 0;
+				
 				ROS_INFO("nothing");
 			}
 			
 			// gesture sending
 			if (gestureActive)
 			{
+				float offset_x = 0;
 				if (activeHand == RIGHTHAND)
 				{
-					ROS_INFO("RH x y offset = (%.2f, %.2f)", gestureReference.z() - substractionRH.z(), crossProductRH.y());
+					offset_x = gestureReference.z() - substractionRH.z();
+					ROS_INFO("RH x y offset = (%.2f, %.2f)", offset_x, crossProductRH.y());
+					msg_offset_x.data = offset_x;
+					msg_offset_y.data = crossProductRH.y();
 				}
 				else if (activeHand == LEFTHAND)
 				{
-					ROS_INFO("LH x y offset = (%.2f, %.2f)", gestureReference.z() - substractionLH.z(), crossProductLH.y());
+					offset_x = gestureReference.z() - substractionLH.z();
+					ROS_INFO("LH x y offset = (%.2f, %.2f)", offset_x, crossProductLH.y());
+					msg_offset_x.data = offset_x;
+					msg_offset_y.data = crossProductLH.y();
 				}
 				
 				if (handDistance < 0.3)
