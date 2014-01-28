@@ -48,7 +48,7 @@ int main(int argc, char** argv)
 	ros::Publisher pub_offset_x = node.advertise<std_msgs::Float32>("/youbotStalker/gesture_processor/offset_linear_x", 1000);
 	ros::Publisher pub_offset_y = node.advertise<std_msgs::Float32>("/youbotStalker/gesture_processor/offset_linear_y", 1000);
 	ros::Publisher pub_gesture_state = node.advertise<std_msgs::Int32>("/youbotStalker/gesture_processor/state", 1000);
-	ros::Rate rate(40);
+	ros::Rate rate(50);
 	
 	bool hasBegun = false;
 	ros::Time begin;
